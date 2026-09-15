@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import axios from "axios";
 import "./App.css";
+import AuthPage from "./AuthPage";
 
 const api = axios.create({ baseURL: "http://localhost:8000" });
 
@@ -34,7 +35,11 @@ function CartDrawer({ cart, onClose, onQty, onRemove, onCheckout }) {
             <div className="cart-empty">🛍️<br />Your cart is empty</div>
           ) : cart.map((item) => (
             <div className="cart-item" key={item.id}>
-              <div className="cart-item-icon">{getIcon(item.name)}</div>
+              <div className="cart-item-icon">
+                {item.image_url
+                  ? <img src={`http://localhost:8000${item.image_url}`} alt={item.name} className="cart-item-thumb" />
+                  : getIcon(item.name)}
+              </div>
               <div className="cart-item-info">
                 <div className="cart-item-name">{item.name}</div>
                 <div className="cart-item-price">${(item.price * item.qty).toFixed(2)}</div>
@@ -138,7 +143,10 @@ function ShopView({ products, onAddToCart }) {
           return (
             <div className="product-card" key={p.id}>
               <div className="product-img">
-                {getIcon(p.name)}
+                {p.image_url
+                  ? <img src={`http://localhost:8000${p.image_url}`} alt={p.name} className="product-img-photo" />
+                  : <span style={{ fontSize: 64 }}>{getIcon(p.name)}</span>
+                }
                 <span className={`stock-badge ${cls}`}>{label}</span>
               </div>
               <div className="product-body">
@@ -161,9 +169,12 @@ function ShopView({ products, onAddToCart }) {
 }
 
 function AdminView({ products, onRefresh, addToast }) {
-  const [form, setForm] = useState({ id: "", name: "", description: "", price: "", quantity: "" });
+  const [form, setForm] = useState({ id: "", name: "", description: "", price: "", quantity: "", image_url: "" });
   const [editId, setEditId] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState("");
+  const [uploading, setUploading] = useState(false);
   const [sortField, setSortField] = useState("id");
   const [sortDir, setSortDir] = useState("asc");
 
@@ -177,16 +188,35 @@ function AdminView({ products, onRefresh, addToast }) {
   const handleSort = (f) => { setSortField(f); setSortDir(sortField === f && sortDir === "asc" ? "desc" : "asc"); };
   const thClass = (f) => sortField === f ? `sort-${sortDir}` : "";
 
-  const reset = () => { setForm({ id: "", name: "", description: "", price: "", quantity: "" }); setEditId(null); };
+  const reset = () => {
+    setForm({ id: "", name: "", description: "", price: "", quantity: "", image_url: "" });
+    setEditId(null); setImageFile(null); setImagePreview("");
+  };
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault(); setLoading(true);
-    const payload = { ...form, id: Number(form.id), price: Number(form.price), quantity: Number(form.quantity) };
     try {
+      let image_url = form.image_url;
+      if (imageFile) {
+        setUploading(true);
+        const fd = new FormData();
+        fd.append("file", imageFile);
+        const res = await api.post("/upload-image", fd, { headers: { "Content-Type": "multipart/form-data" } });
+        image_url = res.data.image_url;
+        setUploading(false);
+      }
+      const payload = { ...form, id: Number(form.id), price: Number(form.price), quantity: Number(form.quantity), image_url };
       if (editId) { await api.put(`/products/${editId}`, payload); addToast("Product updated", "success"); }
       else { await api.post("/products/", payload); addToast("Product added", "success"); }
       reset(); onRefresh();
-    } catch (err) { addToast(err.response?.data?.detail || "Operation failed", "error"); }
+    } catch (err) { addToast(err.response?.data?.detail || "Operation failed", "error"); setUploading(false); }
     setLoading(false);
   };
 
@@ -198,7 +228,12 @@ function AdminView({ products, onRefresh, addToast }) {
     setLoading(false);
   };
 
-  const handleEdit = (p) => { setForm({ id: p.id, name: p.name, description: p.description, price: p.price, quantity: p.quantity }); setEditId(p.id); };
+  const handleEdit = (p) => {
+    setForm({ id: p.id, name: p.name, description: p.description, price: p.price, quantity: p.quantity, image_url: p.image_url || "" });
+    setEditId(p.id);
+    setImageFile(null);
+    setImagePreview(p.image_url ? `http://localhost:8000${p.image_url}` : "");
+  };
 
   return (
     <div className="admin-layout">
@@ -212,8 +247,22 @@ function AdminView({ products, onRefresh, addToast }) {
             <input type="number" placeholder="Price" step="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required />
             <input type="number" placeholder="Quantity" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} required />
           </div>
+          <div className="img-upload-box">
+            <label className="img-upload-label">
+              {imagePreview
+                ? <img src={imagePreview} alt="preview" className="img-preview" />
+                : <div className="img-placeholder"><span>📷</span><p>Click to upload image</p></div>
+              }
+              <input type="file" accept="image/*" onChange={handleImageChange} className="img-input" />
+            </label>
+            {imagePreview && (
+              <button type="button" className="img-remove-btn" onClick={() => { setImageFile(null); setImagePreview(""); setForm({ ...form, image_url: "" }); }}>✕ Remove</button>
+            )}
+          </div>
           <div className="form-actions">
-            <button className="btn btn-primary" type="submit" disabled={loading}>{editId ? "Update" : "Add Product"}</button>
+            <button className="btn btn-primary" type="submit" disabled={loading || uploading}>
+              {uploading ? "Uploading..." : loading ? "Saving..." : editId ? "Update" : "Add Product"}
+            </button>
             {editId && <button className="btn btn-secondary" type="button" onClick={reset}>Cancel</button>}
           </div>
         </form>
@@ -228,6 +277,7 @@ function AdminView({ products, onRefresh, addToast }) {
                 {[["id","ID"],["name","Name"],["description","Description"],["price","Price"],["quantity","Qty"]].map(([f,l]) => (
                   <th key={f} className={thClass(f)} onClick={() => handleSort(f)}>{l}</th>
                 ))}
+                <th>Image</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -236,9 +286,14 @@ function AdminView({ products, onRefresh, addToast }) {
                 <tr key={p.id}>
                   <td>{p.id}</td>
                   <td style={{ fontWeight: 700 }}>{p.name}</td>
-                  <td style={{ color: "var(--muted)", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.description}</td>
+                  <td style={{ color: "var(--muted)", maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.description}</td>
                   <td className="price-cell">${Number(p.price).toFixed(2)}</td>
                   <td><span className="qty-badge">{p.quantity}</span></td>
+                  <td>
+                    {p.image_url
+                      ? <img src={`http://localhost:8000${p.image_url}`} alt={p.name} className="tbl-thumb" />
+                      : <span style={{ color: "var(--muted)", fontSize: 12 }}>No image</span>}
+                  </td>
                   <td>
                     <div className="tbl-actions">
                       <button className="btn-edit" onClick={() => handleEdit(p)}>Edit</button>
@@ -247,7 +302,7 @@ function AdminView({ products, onRefresh, addToast }) {
                   </td>
                 </tr>
               ))}
-              {sorted.length === 0 && <tr><td colSpan={6} className="empty-row">No products found.</td></tr>}
+              {sorted.length === 0 && <tr><td colSpan={7} className="empty-row">No products found.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -257,12 +312,15 @@ function AdminView({ products, onRefresh, addToast }) {
 }
 
 export default function App() {
+  const [user, setUser] = useState(null);
   const [products, setProducts] = useState([]);
   const [view, setView] = useState("shop");
   const [cart, setCart] = useState([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
+
+  if (!user) return <AuthPage onAuth={(u) => setUser(u)} />;
 
   const addToast = (msg, type = "success") => {
     const id = Date.now();
@@ -310,6 +368,8 @@ export default function App() {
               🛒 Cart {cartCount > 0 && <span className="cart-count">{cartCount}</span>}
             </button>
           )}
+          <span style={{ color: "rgba(255,255,255,.8)", fontSize: 13, fontWeight: 600 }}>👤 {user?.name}</span>
+          <button className="nav-link" onClick={() => setUser(null)}>Logout</button>
         </div>
       </nav>
 

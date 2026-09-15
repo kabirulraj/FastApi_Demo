@@ -13,3 +13,8 @@ class product(Base):
     description = Column(Text)
     price = Column(Float)
     quantity = Column(Integer)
+    image_url = Column(String(500), nullable=True)
+
+
+
+    # SQLAlchemy Table Definition

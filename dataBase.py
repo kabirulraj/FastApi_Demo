@@ -5,8 +5,11 @@ db_url = "mysql+pymysql://root:Raj%402001786@localhost:3306/kabirul"
 
 engine = create_engine(db_url)
 
-Session = sessionmaker(
+Session = sessionmaker(   
     autocommit=False,
     autoflush=False,
     bind=engine
 )
+
+
+# Database Connection Setup
