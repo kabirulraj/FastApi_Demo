@@ -2,6 +2,8 @@ import React, { useEffect, useState, useMemo } from "react";
 import axios from "axios";
 import "./App.css";
 import AuthPage from "./AuthPage";
+import Dashboard from "./Dashboard";
+import UserProfile from "./UserProfile";
 
 const api = axios.create({ baseURL: "http://localhost:8000" });
 
@@ -360,6 +362,7 @@ export default function App() {
           <h1>ShopTrac</h1>
         </div>
         <div className="nav-links">
+          <button className={`nav-link ${view === "dashboard" ? "active" : ""}`} onClick={() => setView("dashboard")}>Dashboard</button>
           <button className={`nav-link ${view === "shop" ? "active" : ""}`} onClick={() => setView("shop")}>Shop</button>
           <button className={`nav-link ${view === "admin" ? "active" : ""}`} onClick={() => setView("admin")}>Admin</button>
         </div>
@@ -369,7 +372,16 @@ export default function App() {
               🛒 Cart {cartCount > 0 && <span className="cart-count">{cartCount}</span>}
             </button>
           )}
-          <span style={{ color: "rgba(255,255,255,.8)", fontSize: 13, fontWeight: 600 }}>👤 {user?.username}</span>
+          <button
+            className={`nav-link ${view === "profile" ? "active" : ""}`}
+            onClick={() => setView("profile")}
+            style={{ display: "flex", alignItems: "center", gap: 6 }}
+          >
+            <span style={{ background: "rgba(255,255,255,.25)", borderRadius: "50%", width: 26, height: 26, display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 12 }}>
+              {user?.username?.slice(0,2).toUpperCase()}
+            </span>
+            {user?.username}
+          </button>
           <button className="nav-link" onClick={() => { setUser(null); localStorage.removeItem("token"); }}>Logout</button>
         </div>
       </nav>
@@ -389,6 +401,26 @@ export default function App() {
             <ShopView products={products} onAddToCart={addToCart} />
           </div>
         </>
+      )}
+
+      {view === "profile" && (
+        <div className="page">
+          <p className="section-title">My <span>Profile</span></p>
+          <UserProfile
+            user={user}
+            onUpdate={(u) => setUser(u)}
+            addToast={addToast}
+            cart={cart}
+            products={products}
+          />
+        </div>
+      )}
+
+      {view === "dashboard" && (
+        <div className="page">
+          <p className="section-title">User <span>Dashboard</span></p>
+          <Dashboard products={products} onNavigate={setView} />
+        </div>
       )}
 
       {view === "admin" && (

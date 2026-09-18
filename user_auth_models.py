@@ -14,9 +14,8 @@ class UserLogin(BaseModel):
 
 class UserResponse(BaseModel):
     id: int
-    name: str
+    username: str
     email: EmailStr
-    role: str
 
     class Config:
         from_attributes = True
