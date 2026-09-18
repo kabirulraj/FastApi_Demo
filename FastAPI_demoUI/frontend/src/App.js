@@ -320,20 +320,21 @@ export default function App() {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [toasts, setToasts] = useState([]);
 
-  if (!user) return <AuthPage onAuth={(u) => setUser(u)} />;
-
+  
   const addToast = (msg, type = "success") => {
     const id = Date.now();
     setToasts((t) => [...t, { id, msg, type }]);
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3500);
   };
-
+  
   const fetchProducts = async () => {
     try { const r = await api.get("/products/"); setProducts(r.data); }
     catch { addToast("Failed to load products", "error"); }
   };
-
+  
   useEffect(() => { fetchProducts(); }, []); // eslint-disable-line
+  
+  if (!user) return <AuthPage onAuth={(u) => setUser(u)} />;
 
   const addToCart = (product) => {
     setCart((c) => {
@@ -368,8 +369,8 @@ export default function App() {
               🛒 Cart {cartCount > 0 && <span className="cart-count">{cartCount}</span>}
             </button>
           )}
-          <span style={{ color: "rgba(255,255,255,.8)", fontSize: 13, fontWeight: 600 }}>👤 {user?.name}</span>
-          <button className="nav-link" onClick={() => setUser(null)}>Logout</button>
+          <span style={{ color: "rgba(255,255,255,.8)", fontSize: 13, fontWeight: 600 }}>👤 {user?.username}</span>
+          <button className="nav-link" onClick={() => { setUser(null); localStorage.removeItem("token"); }}>Logout</button>
         </div>
       </nav>
 
