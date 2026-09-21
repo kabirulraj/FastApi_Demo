@@ -6,6 +6,11 @@ import Dashboard from "./Dashboard";
 import UserProfile from "./UserProfile";
 
 const api = axios.create({ baseURL: "http://localhost:8000" });
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
 
 const ICONS = ["📱","💻","📷","🖱️","⌨️","🎧","📺","🖨️","💾","🔋","🖥️","📡"];
 const getIcon = (name = "") => ICONS[name.charCodeAt(0) % ICONS.length];
@@ -170,7 +175,7 @@ function ShopView({ products, onAddToCart }) {
   );
 }
 
-function AdminView({ products, onRefresh, addToast }) {
+function AdminView({ products, onRefresh, addToast, role }) {
   const [form, setForm] = useState({ id: "", name: "", description: "", price: "", quantity: "", image_url: "" });
   const [editId, setEditId] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -214,7 +219,7 @@ function AdminView({ products, onRefresh, addToast }) {
         image_url = res.data.image_url;
         setUploading(false);
       }
-      const payload = { ...form, id: Number(form.id), price: Number(form.price), quantity: Number(form.quantity), image_url };
+      const payload = { name: form.name, description: form.description, price: Number(form.price), quantity: Number(form.quantity), image_url, ...(form.id ? { id: Number(form.id) } : {}) };
       if (editId) { await api.put(`/products/${editId}`, payload); addToast("Product updated", "success"); }
       else { await api.post("/products/", payload); addToast("Product added", "success"); }
       reset(); onRefresh();
@@ -237,16 +242,18 @@ function AdminView({ products, onRefresh, addToast }) {
     setImagePreview(p.image_url ? `http://localhost:8000${p.image_url}` : "");
   };
 
+  const isSuperAdmin = role === "superadmin";
+
   return (
     <div className="admin-layout">
       <div className="card">
         <h2>{editId ? "✏️ Edit Product" : "➕ Add Product"}</h2>
         <form className="product-form" onSubmit={handleSubmit}>
-          <input type="number" placeholder="ID" value={form.id} onChange={(e) => setForm({ ...form, id: e.target.value })} required disabled={!!editId} />
+          {isSuperAdmin && <input type="number" placeholder="ID" value={form.id} onChange={(e) => setForm({ ...form, id: e.target.value })} required disabled={!!editId} />}
           <input placeholder="Product Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
           <input placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} required />
           <div className="form-row">
-            <input type="number" placeholder="Price" step="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required />
+            <input type="number" placeholder="Price" step="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required /> <br/>
             <input type="number" placeholder="Quantity" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} required />
           </div>
           <div className="img-upload-box">
@@ -270,7 +277,7 @@ function AdminView({ products, onRefresh, addToast }) {
         </form>
       </div>
 
-      <div className="card">
+      {isSuperAdmin && <div className="card">
         <h2>📦 Inventory ({products.length})</h2>
         <div className="table-wrap">
           <table className="admin-table">
@@ -302,13 +309,14 @@ function AdminView({ products, onRefresh, addToast }) {
                       <button className="btn-delete" onClick={() => handleDelete(p.id)}>Delete</button>
                     </div>
                   </td>
+
                 </tr>
               ))}
               {sorted.length === 0 && <tr><td colSpan={7} className="empty-row">No products found.</td></tr>}
             </tbody>
           </table>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }
@@ -336,7 +344,7 @@ export default function App() {
   
   useEffect(() => { fetchProducts(); }, []); // eslint-disable-line
   
-  if (!user) return <AuthPage onAuth={(u) => setUser(u)} />;
+  if (!user) return <AuthPage onAuth={(u) => { setUser(u); setView(u.role?.name === "seller" ? "admin" : "shop"); }} />;
 
   const addToCart = (product) => {
     setCart((c) => {
@@ -359,12 +367,13 @@ export default function App() {
       <nav className="navbar">
         <div className="nav-brand">
           <span>🛍️</span>
-          <h1>ShopTrac</h1>
+          <h1>R-Electronic</h1>
         </div>
         <div className="nav-links">
-          <button className={`nav-link ${view === "dashboard" ? "active" : ""}`} onClick={() => setView("dashboard")}>Dashboard</button>
+          {user?.role?.name === "superadmin" && <button className={`nav-link ${view === "dashboard" ? "active" : ""}`} onClick={() => setView("dashboard")}>Dashboard</button>}
           <button className={`nav-link ${view === "shop" ? "active" : ""}`} onClick={() => setView("shop")}>Shop</button>
-          <button className={`nav-link ${view === "admin" ? "active" : ""}`} onClick={() => setView("admin")}>Admin</button>
+          {user?.role?.name === "superadmin" && <button className={`nav-link ${view === "admin" ? "active" : ""}`} onClick={() => setView("admin")}>Admin</button>}
+          {user?.role?.name === "seller" && <button className={`nav-link ${view === "admin" ? "active" : ""}`} onClick={() => setView("admin")}>Add Product</button>}
         </div>
         <div className="nav-right">
           {view === "shop" && (
@@ -393,7 +402,7 @@ export default function App() {
             <p>Shop the latest tech gadgets and electronics at unbeatable prices.</p>
             <div className="hero-actions">
               <button className="btn-hero btn-hero-primary" onClick={() => document.querySelector(".toolbar-search")?.focus()}>Shop Now</button>
-              <button className="btn-hero btn-hero-outline" onClick={() => setView("admin")}>Manage Store</button>
+              {user?.role?.name === "superadmin" && <button className="btn-hero btn-hero-outline" onClick={() => setView("admin")}>Manage Store</button>}
             </div>
           </div>
           <div className="page">
@@ -416,17 +425,17 @@ export default function App() {
         </div>
       )}
 
-      {view === "dashboard" && (
+      {view === "dashboard" && user?.role?.name === "superadmin" && (
         <div className="page">
           <p className="section-title">User <span>Dashboard</span></p>
           <Dashboard products={products} onNavigate={setView} />
         </div>
       )}
 
-      {view === "admin" && (
+      {view === "admin" && (user?.role?.name === "superadmin" || user?.role?.name === "seller") && (
         <div className="page">
-          <p className="section-title">Admin <span>Panel</span></p>
-          <AdminView products={products} onRefresh={fetchProducts} addToast={addToast} />
+          <p className="section-title">{user?.role?.name === "seller" ? <>Add <span>Product</span></> : <>Admin <span>Panel</span></>}</p>
+          <AdminView products={products} onRefresh={fetchProducts} addToast={addToast} role={user?.role?.name} />
         </div>
       )}
 

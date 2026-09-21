@@ -51,7 +51,7 @@ export default function UserProfile({ user, onUpdate, addToast, cart, products }
           <div className="profile-avatar">{initials}</div>
           <div className="profile-name">{user.username}</div>
           <div className="profile-email">{user.email}</div>
-          <span className="profile-badge">👤 Member</span>
+          <span className="profile-badge">🛡️ {user.role?.name ?? "Member"}</span>
           <hr className="profile-divider" />
           <div className="profile-meta">
             <div className="profile-meta-row">
@@ -138,7 +138,7 @@ export default function UserProfile({ user, onUpdate, addToast, cart, products }
               </div>
               <div className="info-field">
                 <span className="info-label">Role</span>
-                <div className="info-value">🛡️ Member</div>
+                <div className="info-value">🛡️ {user.role?.name ?? "—"}</div>
               </div>
             </div>
           )}
